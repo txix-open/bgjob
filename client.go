@@ -3,26 +3,30 @@ package bgjob
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"time"
 )
 
-var (
-	ErrQueueIsRequired = errors.New("queue is required")
-	ErrTypeIsRequired  = errors.New("type is required")
-	ErrEmptyQueue      = errors.New("queue is empty")
-)
-
-type Client struct {
-	db *sql.DB
+type Tx interface {
+	Job() Job
+	Update(ctx context.Context, id string, attempt int32, lastError string, nextRunAt int64) error
+	Delete(ctx context.Context, id string) error
+	SaveInDlq(ctx context.Context, job Job) error
 }
 
-func NewClient(db *sql.DB) *Client {
+type Store interface {
+	Insert(ctx context.Context, job Job) error
+	Acquire(ctx context.Context, queue string, tx func(tx Tx) error) error
+}
+
+type Client struct {
+	store Store
+}
+
+func NewClient(store Store) *Client {
 	return &Client{
-		db: db,
+		store: store,
 	}
 }
 
@@ -54,22 +58,10 @@ func (c *Client) Enqueue(ctx context.Context, req EnqueueRequest) error {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	query := `INSERT INTO bgjob_job 
-(id, queue, type, arg, attempt, next_run_at, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-`
-	_, err := c.db.ExecContext(
-		ctx,
-		query,
-		job.Id,
-		job.Queue,
-		job.Type,
-		job.Arg,
-		job.Attempt,
-		job.NextRunAt,
-		job.CreatedAt,
-		job.UpdatedAt,
-	) //TODO handle conflict and return specified error
+	err := c.store.Insert(ctx, job)
+	if err == ErrJobAlreadyExist {
+		return err
+	}
 	if err != nil {
 		return fmt.Errorf("insert job: %w", err)
 	}
@@ -78,106 +70,52 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 }
 
 func (c *Client) Do(ctx context.Context, queue string, f func(ctx context.Context, job Job) Result) error {
-	err := runTx(ctx, c.db, func(ctx context.Context, tx *sql.Tx) error {
-		query := `
-SELECT id, queue, type, arg, attempt, last_error, next_run_at, created_at, updated_at
-FROM bgjob_job
-WHERE queue = $1 AND next_run_at <= $2
-ORDER BY next_run_at, created_at
-LIMIT 1 FOR UPDATE SKIP LOCKED
-`
-		now := timeNow().Unix()
-		job := Job{}
-		err := tx.QueryRowContext(ctx, query, queue, now).Scan(
-			&job.Id,
-			&job.Queue,
-			&job.Type,
-			&job.Arg,
-			&job.Attempt,
-			&job.LastError,
-			&job.NextRunAt,
-			&job.CreatedAt,
-			&job.UpdatedAt,
-		)
-		if err == sql.ErrNoRows {
-			return ErrEmptyQueue
-		}
-		if err != nil {
-			return fmt.Errorf("select job: %w", err)
-		}
-
-		job.Attempt++
-		result := f(ctx, job)
-
-		if result.complete {
-			query := `DELETE FROM bgjob_job WHERE id = $1`
-			_, err := tx.ExecContext(ctx, query, job.Id)
-			if err != nil {
-				return fmt.Errorf("delete job %s: %w", job.Id, err)
-			}
-			return nil
-		}
-
-		if result.retry {
-			query := `
-	UPDATE bgjob_job SET attempt = $1, last_error = $2, next_run_at = $3, updated_at = $4 WHERE id = $5
-`
-			now := timeNow()
-			_, err := tx.ExecContext(
-				ctx,
-				query,
-				job.Attempt,
-				result.err.Error(),
-				now.Add(result.retryDelay).Unix(),
-				now,
-				job.Id,
-			)
-			if err != nil {
-				return fmt.Errorf("update job %s: %w", job.Id, err)
-			}
-			return nil
-		}
-
-		if result.moveToDlq {
-			query := `INSERT INTO bgjob_dead_job 
-(job_id, queue, type, arg, attempt, next_run_at, last_error, job_created_at, job_updated_at, moved_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-`
-			_, err := c.db.ExecContext(
-				ctx,
-				query,
-				job.Id,
-				job.Queue,
-				job.Type,
-				job.Arg,
-				job.Attempt,
-				job.NextRunAt,
-				result.err.Error(),
-				job.CreatedAt,
-				job.UpdatedAt,
-				timeNow(),
-			)
-			if err != nil {
-				return fmt.Errorf("insert dead job: %w", err)
-			}
-
-			query = `DELETE FROM bgjob_job WHERE id = $1`
-			_, err = tx.ExecContext(ctx, query, job.Id)
-			if err != nil {
-				return fmt.Errorf("delete job %s: %w", job.Id, err)
-			}
-			return nil
-
-		}
-
-		return nil
+	err := c.store.Acquire(ctx, queue, func(tx Tx) error {
+		return c.jobTx(ctx, tx, f)
 	})
-	if err == ErrEmptyQueue {
-		return err
+	return err
+}
+
+func (c *Client) jobTx(ctx context.Context, tx Tx, f func(ctx context.Context, job Job) Result) error {
+	job := tx.Job()
+	job.Attempt++
+
+	result := f(ctx, job)
+
+	if result.complete {
+		err := tx.Delete(ctx, job.Id)
+		if err != nil {
+			return fmt.Errorf("delete job: %w", err)
+		}
 	}
-	if err != nil {
-		return fmt.Errorf("do job: %w", err)
+
+	if result.retry {
+		err := tx.Update(
+			ctx,
+			job.Id,
+			job.Attempt,
+			result.err.Error(),
+			timeNow().Add(result.retryDelay).Unix(),
+		)
+		if err != nil {
+			return fmt.Errorf("update job: %w", err)
+		}
 	}
+
+	if result.moveToDlq {
+		errorString := result.err.Error()
+		job.LastError = &errorString
+		err := tx.SaveInDlq(ctx, job)
+		if err != nil {
+			return fmt.Errorf("insert into dlq: %w", err)
+		}
+
+		err = tx.Delete(ctx, job.Id)
+		if err != nil {
+			return fmt.Errorf("delete job: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -189,28 +127,6 @@ func nextId() (string, error) {
 	}
 	id := hex.EncodeToString(arr)
 	return id, nil
-}
-
-func runTx(ctx context.Context, db *sql.DB, txFunc func(ctx context.Context, tx *sql.Tx) error) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin: %w", err)
-	}
-
-	defer func() {
-		if err != nil {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				err = fmt.Errorf("%w, rollback error: %v", err, rbErr.Error())
-			}
-		} else {
-			err := tx.Commit()
-			if err != nil {
-				err = fmt.Errorf("commit: %w", err)
-			}
-		}
-	}()
-
-	return txFunc(ctx, tx)
 }
 
 func timeNow() time.Time {

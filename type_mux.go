@@ -2,11 +2,6 @@ package bgjob
 
 import (
 	"context"
-	"errors"
-)
-
-var (
-	ErrUnknownType = errors.New("unknown type")
 )
 
 type Mux struct {

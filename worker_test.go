@@ -11,9 +11,8 @@ import (
 )
 
 func TestWorker_Run(t *testing.T) {
-	require, db := prepareTest(t)
+	require, _, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	value := int32(0)
 	w := bgjob.NewWorker(cli, "test", bgjob.HandlerFunc(func(ctx context.Context, job bgjob.Job) bgjob.Result {
 		atomic.AddInt32(&value, 1)
@@ -31,9 +30,8 @@ func TestWorker_Run(t *testing.T) {
 }
 
 func TestWorker_Shutdown(t *testing.T) {
-	require, db := prepareTest(t)
+	require, _, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	value := int32(0)
 	w := bgjob.NewWorker(cli, "test", bgjob.HandlerFunc(func(ctx context.Context, job bgjob.Job) bgjob.Result {
 		time.Sleep(3 * time.Second)
@@ -53,9 +51,8 @@ func TestWorker_Shutdown(t *testing.T) {
 }
 
 func TestWorker_RunConcurrency(t *testing.T) {
-	require, db := prepareTest(t)
+	require, _, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	value := int32(0)
 	w := bgjob.NewWorker(cli, "test", bgjob.HandlerFunc(func(ctx context.Context, job bgjob.Job) bgjob.Result {
 		time.Sleep(5 * time.Second)
@@ -81,9 +78,8 @@ func TestWorker_RunConcurrency(t *testing.T) {
 }
 
 func TestWorker_Observer(t *testing.T) {
-	require, db := prepareTest(t)
+	require, _, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	observer := &observerCounter{}
 	w := bgjob.NewWorker(cli, "test", bgjob.HandlerFunc(func(ctx context.Context, job bgjob.Job) bgjob.Result {
 		if job.Type == "complete_me" {

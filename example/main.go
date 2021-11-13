@@ -45,11 +45,11 @@ func main() {
 		return bgjob.MoveToDlq(errors.New("move to dlq"))
 	})
 
-	cli := bgjob.NewClient(db)
+	cli := bgjob.NewClient(bgjob.NewPgStore(db))
 
 	//if handler for job type wasn't provided, job will be moved to dlq
 	handler := bgjob.NewMux().
-		Register("compete_me", handleComplete).
+		Register("complete_me", handleComplete).
 		Register("retry_me", handleRetry).
 		Register("move_to_dlq", handleMoveToDlq)
 	queueName := "test"
@@ -68,7 +68,7 @@ func main() {
 	err = cli.Enqueue(ctx, bgjob.EnqueueRequest{
 		Id:    "test", //you can provide you own id
 		Queue: queueName,
-		Type:  "compete_me",
+		Type:  "complete_me",
 		Arg:   []byte(`{"simpleJson": 1}`), //it can be json or protobuf or a simple string
 		Delay: 1 * time.Second,             //you can delay job execution
 	})

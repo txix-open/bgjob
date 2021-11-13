@@ -10,7 +10,7 @@ import (
 )
 
 func TestMux(t *testing.T) {
-	require, db := prepareTest(t)
+	require, db, cli := prepareTest(t)
 
 	value := int32(0)
 	handler := bgjob.HandlerFunc(func(ctx context.Context, job bgjob.Job) bgjob.Result {
@@ -18,7 +18,6 @@ func TestMux(t *testing.T) {
 		return bgjob.Complete()
 	})
 
-	cli := bgjob.NewClient(db.DB)
 	mux := bgjob.NewMux().
 		Register("type1", handler).
 		Register("type2", handler)

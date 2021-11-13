@@ -2,7 +2,7 @@
 
 Tiny library to handle background jobs.
 
-Use PostgreSQL to organize job queues.
+Uses PostgreSQL to organize job queues.
 
 Highly inspired by [gue](https://github.com/vgarvardt/gue)
 
@@ -15,11 +15,16 @@ Highly inspired by [gue](https://github.com/vgarvardt/gue)
 * DLQ
 * Zero dependencies (database/sql is used, to log events you can use `Observer`)
 
+## Why ? 
+* You need flexible and robust job procession tool
+* You already use PostgreSQL
+* You require strong guaranties for task processing and consistency
+* You have a quite small load. Queues on database usually can handle around 1000 rps
+
 ## State
 * API unstable and can be changed
 * Library is not tested well, please use it in your production carefully
 * Need to implement benchmarking and load tests
-* Need refactoring
 
 ## Install
 1. ```go get github.com/integration-system/bgjob```
@@ -74,11 +79,11 @@ func main() {
 		return bgjob.MoveToDlq(errors.New("move to dlq"))
 	})
 
-	cli := bgjob.NewClient(db)
+	cli := bgjob.NewClient(bgjob.NewPgStore(db))
 
 	//if handler for job type wasn't provided, job will be moved to dlq
 	handler := bgjob.NewMux().
-		Register("compete_me", handleComplete).
+		Register("complete_me", handleComplete).
 		Register("retry_me", handleRetry).
 		Register("move_to_dlq", handleMoveToDlq)
 	queueName := "test"
@@ -87,7 +92,7 @@ func main() {
 		cli,
 		queueName,
 		handler,
-		bgjob.WithObserver(observer), //default noop
+		bgjob.WithObserver(observer),            //default noop
 		bgjob.WithConcurrency(runtime.NumCPU()), //default 1
 		bgjob.WithPollInterval(500*time.Millisecond), //default 1s
 	)
@@ -97,9 +102,9 @@ func main() {
 	err = cli.Enqueue(ctx, bgjob.EnqueueRequest{
 		Id:    "test", //you can provide you own id
 		Queue: queueName,
-		Type:  "compete_me",
+		Type:  "complete_me",
 		Arg:   []byte(`{"simpleJson": 1}`), //it can be json or protobuf or a simple string
-		Delay: 1 * time.Second, //you can delay job execution
+		Delay: 1 * time.Second,             //you can delay job execution
 	})
 	if err != nil {
 		panic(err)

@@ -47,53 +47,58 @@ func NewWorker(cli *Client, queue string, handler Handler, opts ...WorkerOption)
 func (w *Worker) Run(ctx context.Context) {
 	for i := 0; i < w.concurrency; i++ {
 		w.wg.Add(1)
-		go func() {
-			defer w.wg.Done()
+		go w.run(ctx)
+	}
+}
 
-			for {
-				select {
-				case <-w.close:
-					return
-				default:
-				}
+func (w *Worker) run(ctx context.Context) {
+	defer w.wg.Done()
 
-				var lastResult Result
-				var lastJob Job
-				err := w.cli.Do(ctx, w.queue, func(ctx context.Context, job Job) Result {
-					w.observer.JobStarted(ctx, job)
+	for {
+		select {
+		case <-w.close:
+			return
+		default:
+		}
 
-					result := w.handler.Handle(ctx, job)
-					lastResult = result
-					lastJob = job
+		var lastResult Result
+		var lastJob Job
+		err := w.cli.Do(ctx, w.queue, func(ctx context.Context, job Job) Result {
+			w.observer.JobStarted(ctx, job)
 
-					return result
-				})
-				if err != nil {
-					if err == ErrEmptyQueue {
-						w.observer.QueueIsEmpty(ctx)
-					} else {
-						w.observer.WorkerError(ctx, err)
-					}
+			result := w.handler.Handle(ctx, job)
+			lastResult = result
+			lastJob = job
 
-					select {
-					case <-ctx.Done():
-					case <-time.After(w.pollInterval):
-
-					}
-					continue
-				}
-
-				if lastResult.complete {
-					w.observer.JobCompleted(ctx, lastJob)
-				}
-				if lastResult.retry {
-					w.observer.JobWillBeRetried(ctx, lastJob, lastResult.retryDelay, lastResult.err)
-				}
-				if lastResult.moveToDlq {
-					w.observer.JobMovedToDlq(ctx, lastJob, lastResult.err)
-				}
+			return result
+		})
+		if err != nil {
+			if err == ErrEmptyQueue {
+				w.observer.QueueIsEmpty(ctx)
+			} else {
+				w.observer.WorkerError(ctx, err)
 			}
-		}()
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-w.close:
+				return
+			case <-time.After(w.pollInterval):
+
+			}
+			continue
+		}
+
+		if lastResult.complete {
+			w.observer.JobCompleted(ctx, lastJob)
+		}
+		if lastResult.retry {
+			w.observer.JobWillBeRetried(ctx, lastJob, lastResult.retryDelay, lastResult.err)
+		}
+		if lastResult.moveToDlq {
+			w.observer.JobMovedToDlq(ctx, lastJob, lastResult.err)
+		}
 	}
 }
 

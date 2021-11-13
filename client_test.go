@@ -17,9 +17,8 @@ const (
 )
 
 func TestClient_Enqueue(t *testing.T) {
-	require, db := prepareTest(t)
+	require, db, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	delay := 5 * time.Second
 	req := bgjob.EnqueueRequest{
 		Id:    "123",
@@ -44,9 +43,8 @@ func TestClient_Enqueue(t *testing.T) {
 }
 
 func TestClient_EnqueueConflict(t *testing.T) {
-	require, db := prepareTest(t)
+	require, _, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	delay := 5 * time.Second
 	req := bgjob.EnqueueRequest{
 		Id:    "123",
@@ -58,13 +56,12 @@ func TestClient_EnqueueConflict(t *testing.T) {
 	err := cli.Enqueue(context.Background(), req)
 	require.NoError(err)
 	err = cli.Enqueue(context.Background(), req)
-	require.Error(err)
+	require.Equal(bgjob.ErrJobAlreadyExist, err)
 }
 
 func TestClient_EnqueueGenerateId(t *testing.T) {
-	require, db := prepareTest(t)
+	require, _, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	delay := 5 * time.Second
 	req := bgjob.EnqueueRequest{
 		Queue: "name",
@@ -79,8 +76,7 @@ func TestClient_EnqueueGenerateId(t *testing.T) {
 }
 
 func TestClient_DoEmptyQueue(t *testing.T) {
-	require, db := prepareTest(t)
-	cli := bgjob.NewClient(db.DB)
+	require, _, cli := prepareTest(t)
 	err := cli.Do(context.Background(), "name", func(ctx context.Context, job bgjob.Job) bgjob.Result {
 		return bgjob.Complete()
 	})
@@ -88,9 +84,8 @@ func TestClient_DoEmptyQueue(t *testing.T) {
 }
 
 func TestClient_DoComplete(t *testing.T) {
-	require, db := prepareTest(t)
+	require, db, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	req := bgjob.EnqueueRequest{
 		Id:    "123",
 		Queue: "name",
@@ -116,9 +111,8 @@ func TestClient_DoComplete(t *testing.T) {
 }
 
 func TestClient_DoDelayed(t *testing.T) {
-	require, db := prepareTest(t)
+	require, db, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	req := bgjob.EnqueueRequest{
 		Id:    "123",
 		Queue: "name",
@@ -145,9 +139,8 @@ func TestClient_DoDelayed(t *testing.T) {
 }
 
 func TestClient_DoRetry(t *testing.T) {
-	require, db := prepareTest(t)
+	require, db, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	req := bgjob.EnqueueRequest{
 		Id:    "123",
 		Queue: "name",
@@ -186,9 +179,8 @@ func TestClient_DoRetry(t *testing.T) {
 }
 
 func TestClient_DoDlq(t *testing.T) {
-	require, db := prepareTest(t)
+	require, db, cli := prepareTest(t)
 
-	cli := bgjob.NewClient(db.DB)
 	req := bgjob.EnqueueRequest{
 		Id:    "123",
 		Queue: "name",
@@ -216,7 +208,7 @@ func TestClient_DoDlq(t *testing.T) {
 	require.EqualValues("test error", *job.LastError)
 }
 
-func prepareTest(t *testing.T) (*require.Assertions, *db) {
+func prepareTest(t *testing.T) (*require.Assertions, *db, *bgjob.Client) {
 	asserter := require.New(t)
 	db, err := Open(dsn, t)
 	asserter.NoError(err)
@@ -227,7 +219,9 @@ func prepareTest(t *testing.T) (*require.Assertions, *db) {
 	err = applyMigration(db.DB)
 	asserter.NoError(err)
 
-	return asserter, db
+	cli := bgjob.NewClient(bgjob.NewPgStore(db.DB))
+
+	return asserter, db, cli
 }
 
 func applyMigration(db *sql.DB) error {
