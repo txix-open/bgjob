@@ -22,7 +22,6 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
       - name: Run coverage
         env:
           POSTGRES_HOST: postgres
