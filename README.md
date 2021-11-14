@@ -1,5 +1,5 @@
 # bgjob
-![example workflow](https://github.com/integration-system/bgjobs/actions/workflows/test.yml/badge.svg)
+![Build and test](https://github.com/integration-system/bgjobs/actions/workflows/main.yml/badge.svg)
 
 
 Tiny library to handle background jobs.

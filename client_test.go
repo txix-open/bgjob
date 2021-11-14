@@ -3,17 +3,15 @@ package bgjob_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/integration-system/bgjob"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	dsn = "postgres://test:test@localhost:5432/test"
 )
 
 func TestClient_Enqueue(t *testing.T) {
@@ -209,6 +207,12 @@ func TestClient_DoDlq(t *testing.T) {
 
 func prepareTest(t *testing.T) (*require.Assertions, *db, *bgjob.Client) {
 	asserter := require.New(t)
+	host := "localhost"
+	envHost := os.Getenv("POSTGRES_HOST")
+	if envHost != "" {
+		host = envHost
+	}
+	dsn := fmt.Sprintf("postgres://test:test@%s:5432/test", host)
 	db, err := Open(dsn, t)
 	asserter.NoError(err)
 	t.Cleanup(func() {
