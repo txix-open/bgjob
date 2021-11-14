@@ -68,6 +68,9 @@ LIMIT 1 FOR UPDATE SKIP LOCKED
 		if err == sql.ErrNoRows {
 			return ErrEmptyQueue
 		}
+		if err != nil {
+			return err
+		}
 		return handler(&pgTx{
 			job: job,
 			tx:  tx,
@@ -87,9 +90,9 @@ func runTx(ctx context.Context, db *sql.DB, txFunc func(ctx context.Context, tx 
 				err = fmt.Errorf("%w, rollback error: %v", err, rbErr.Error())
 			}
 		} else {
-			err := tx.Commit()
-			if err != nil {
-				err = fmt.Errorf("commit: %w", err)
+			comErr := tx.Commit()
+			if comErr != nil {
+				err = fmt.Errorf("commit: %w", comErr)
 			}
 		}
 	}()
