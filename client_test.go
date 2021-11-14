@@ -95,7 +95,6 @@ func TestClient_DoComplete(t *testing.T) {
 	err := cli.Enqueue(context.Background(), req)
 	require.NoError(err)
 	err = cli.Do(context.Background(), "name", func(ctx context.Context, job bgjob.Job) bgjob.Result {
-		require.NoError(err)
 		require.NotNil(job)
 		require.Equal("123", job.Id)
 		require.Equal("name", job.Queue)

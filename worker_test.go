@@ -2,6 +2,7 @@ package bgjob_test
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -108,43 +109,92 @@ func TestWorker_Observer(t *testing.T) {
 	require.NoError(err)
 	time.Sleep(3 * time.Second)
 
-	require.EqualValues(1, observer.jobCompeted)
-	require.EqualValues(1, observer.jobWillBeRetried)
-	require.EqualValues(1, observer.jobMovedToDlq)
-	require.EqualValues(3, observer.jobStarted)
-	require.GreaterOrEqual(observer.queueIsEmpty, 1)
-	require.EqualValues(0, observer.workerError)
+	require.EqualValues(1, atomic.LoadInt32(&observer.jobCompeted))
+	require.EqualValues(1, atomic.LoadInt32(&observer.jobWillBeRetried))
+	require.EqualValues(1, atomic.LoadInt32(&observer.jobMovedToDlq))
+	require.EqualValues(3, atomic.LoadInt32(&observer.jobStarted))
+	require.GreaterOrEqual(atomic.LoadInt32(&observer.queueIsEmpty), int32(1))
+	require.EqualValues(0, atomic.LoadInt32(&observer.workerError))
+}
+
+func TestWorker_RunHighConcurrency(t *testing.T) {
+	require, _, cli := prepareTest(t)
+
+	max := 1000
+	c := make(chan bgjob.EnqueueRequest)
+	jobCounter := sync.WaitGroup{}
+	publishers := 16
+	total := int32(0)
+	for i := 0; i < publishers; i++ {
+		go func() {
+			for request := range c {
+				err := cli.Enqueue(context.Background(), request)
+				require.NoError(err)
+			}
+		}()
+	}
+	observer := &observerCounter{}
+	handler := bgjob.HandlerFunc(func(ctx context.Context, job bgjob.Job) bgjob.Result {
+		jobCounter.Done()
+		atomic.AddInt32(&total, 1)
+		return bgjob.Complete()
+	})
+	worker := bgjob.NewWorker(
+		cli,
+		"test",
+		handler,
+		bgjob.WithConcurrency(32),
+		bgjob.WithObserver(observer),
+	)
+	worker.Run(context.Background())
+
+	start := time.Now()
+	for i := 0; i < max; i++ {
+		jobCounter.Add(1)
+		c <- bgjob.EnqueueRequest{
+			Queue: "test",
+			Type:  "test",
+		}
+	}
+	close(c)
+	jobCounter.Wait()
+	worker.Shutdown()
+	require.EqualValues(max, atomic.LoadInt32(&total))
+	dur := time.Since(start)
+	t.Logf("%d jobs completed %s, rps:  %f", max, dur, float32(total)/float32(dur.Seconds()))
+
+	require.EqualValues(0, atomic.LoadInt32(&observer.workerError))
 }
 
 type observerCounter struct {
-	jobStarted       int
-	jobCompeted      int
-	jobWillBeRetried int
-	jobMovedToDlq    int
-	queueIsEmpty     int
-	workerError      int
+	jobStarted       int32
+	jobCompeted      int32
+	jobWillBeRetried int32
+	jobMovedToDlq    int32
+	queueIsEmpty     int32
+	workerError      int32
 }
 
 func (o *observerCounter) JobStarted(ctx context.Context, job bgjob.Job) {
-	o.jobStarted++
+	atomic.AddInt32(&o.jobStarted, 1)
 }
 
 func (o *observerCounter) JobCompleted(ctx context.Context, job bgjob.Job) {
-	o.jobCompeted++
+	atomic.AddInt32(&o.jobCompeted, 1)
 }
 
 func (o *observerCounter) JobWillBeRetried(ctx context.Context, job bgjob.Job, after time.Duration, err error) {
-	o.jobWillBeRetried++
+	atomic.AddInt32(&o.jobWillBeRetried, 1)
 }
 
 func (o *observerCounter) JobMovedToDlq(ctx context.Context, job bgjob.Job, err error) {
-	o.jobMovedToDlq++
+	atomic.AddInt32(&o.jobMovedToDlq, 1)
 }
 
 func (o *observerCounter) QueueIsEmpty(ctx context.Context) {
-	o.queueIsEmpty++
+	atomic.AddInt32(&o.queueIsEmpty, 1)
 }
 
 func (o *observerCounter) WorkerError(ctx context.Context, err error) {
-	o.workerError++
+	atomic.AddInt32(&o.workerError, 1)
 }
