@@ -18,7 +18,7 @@ Highly inspired by [gue](https://github.com/vgarvardt/gue)
 * Zero dependencies (database/sql is used, to log events you can use `Observer`)
 
 ## Why ? 
-* You need flexible and robust job procession tool
+* You need flexible and robust job processing tool
 * You already use PostgreSQL
 * You require strong guaranties for task processing and consistency
 * You have a quite small load. Queues on database usually can handle around 1000 rps
