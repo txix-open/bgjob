@@ -17,15 +17,27 @@ import (
 func TestClient_Enqueue(t *testing.T) {
 	require, db, cli := prepareTest(t)
 
-	delay := 5 * time.Second
 	req := bgjob.EnqueueRequest{
+		Queue: "test",
+	}
+	err := cli.Enqueue(context.Background(), req)
+	require.EqualValues(bgjob.ErrTypeIsRequired, err)
+
+	req = bgjob.EnqueueRequest{
+		Type: "test",
+	}
+	err = cli.Enqueue(context.Background(), req)
+	require.EqualValues(bgjob.ErrQueueIsRequired, err)
+
+	delay := 5 * time.Second
+	req = bgjob.EnqueueRequest{
 		Id:    "123",
 		Queue: "name",
 		Type:  "test",
 		Arg:   []byte(`{"simpleJson": 1}`),
 		Delay: delay,
 	}
-	err := cli.Enqueue(context.Background(), req)
+	err = cli.Enqueue(context.Background(), req)
 	require.NoError(err)
 
 	job, err := getJob(db.DB, "123")

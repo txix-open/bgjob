@@ -1,6 +1,6 @@
 # bgjob
 ![Build and test](https://github.com/integration-system/bgjob/actions/workflows/main.yml/badge.svg)
-
+[![codecov](https://codecov.io/gh/integration-system/bgjob/branch/master/graph/badge.svg?token=ZEX2Y8ZWKZ)](https://codecov.io/gh/integration-system/bgjob)
 
 Tiny library to handle background jobs.
 
