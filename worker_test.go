@@ -117,6 +117,23 @@ func TestWorker_Observer(t *testing.T) {
 	require.EqualValues(0, atomic.LoadInt32(&observer.workerError))
 }
 
+func TestWorker_PollInterval(t *testing.T) {
+	require, _, cli := prepareTest(t)
+	observer := &observerCounter{}
+	worker := bgjob.NewWorker(
+		cli,
+		"test",
+		bgjob.HandlerFunc(func(ctx context.Context, job bgjob.Job) bgjob.Result {
+			return bgjob.Complete()
+		}),
+		bgjob.WithPollInterval(2*time.Second),
+		bgjob.WithObserver(observer),
+	)
+	worker.Run(context.Background())
+	time.Sleep(5 * time.Second)
+	require.EqualValues(3, atomic.LoadInt32(&observer.queueIsEmpty))
+}
+
 func TestWorker_RunHighConcurrency(t *testing.T) {
 	require, _, cli := prepareTest(t)
 
