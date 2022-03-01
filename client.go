@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -16,8 +17,8 @@ type Tx interface {
 }
 
 type Store interface {
-	Insert(ctx context.Context, job Job) error
 	Acquire(ctx context.Context, queue string, tx func(tx Tx) error) error
+	BulkInsert(ctx context.Context, jobs []Job) error
 }
 
 type Client struct {
@@ -31,41 +32,52 @@ func NewClient(store Store) *Client {
 }
 
 func (c *Client) Enqueue(ctx context.Context, req EnqueueRequest) error {
-	if req.Queue == "" {
-		return ErrQueueIsRequired
-	}
-	if req.Type == "" {
-		return ErrTypeIsRequired
+	return c.BulkEnqueue(ctx, []EnqueueRequest{req})
+}
+
+func (c *Client) BulkEnqueue(ctx context.Context, list []EnqueueRequest) error {
+	if len(list) == 0 {
+		return errors.New("list is empty. at least one job is expected")
 	}
 
+	jobs := make([]Job, 0, len(list))
 	now := timeNow()
-	id := req.Id
-	if id == "" {
-		generated, err := nextId()
-		if err != nil {
-			return fmt.Errorf("generate id: %w", err)
+	for _, req := range list {
+		if req.Queue == "" {
+			return ErrQueueIsRequired
 		}
-		id = generated
+		if req.Type == "" {
+			return ErrTypeIsRequired
+		}
+
+		id := req.Id
+		if id == "" {
+			generated, err := nextId()
+			if err != nil {
+				return fmt.Errorf("generate id: %w", err)
+			}
+			id = generated
+		}
+		job := Job{
+			Id:        id,
+			Queue:     req.Queue,
+			Type:      req.Type,
+			Arg:       req.Arg,
+			Attempt:   0,
+			LastError: nil,
+			NextRunAt: now.Add(req.Delay).Unix(),
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		jobs = append(jobs, job)
 	}
-	job := Job{
-		Id:        id,
-		Queue:     req.Queue,
-		Type:      req.Type,
-		Arg:       req.Arg,
-		Attempt:   0,
-		LastError: nil,
-		NextRunAt: now.Add(req.Delay).Unix(),
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-	err := c.store.Insert(ctx, job)
+	err := c.store.BulkInsert(ctx, jobs)
 	if err == ErrJobAlreadyExist {
 		return err
 	}
 	if err != nil {
-		return fmt.Errorf("insert job: %w", err)
+		return fmt.Errorf("insert jobs: %w", err)
 	}
-
 	return nil
 }
 

@@ -17,23 +17,32 @@ func NewPgStore(db *sql.DB) *pgStore {
 	}
 }
 
-func (p *pgStore) Insert(ctx context.Context, job Job) error {
-	query := `INSERT INTO bgjob_job 
-(id, queue, type, arg, attempt, next_run_at, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-`
-	_, err := p.db.ExecContext(
-		ctx,
-		query,
-		job.Id,
-		job.Queue,
-		job.Type,
-		job.Arg,
-		job.Attempt,
-		job.NextRunAt,
-		job.CreatedAt,
-		job.UpdatedAt,
-	)
+func (p *pgStore) BulkInsert(ctx context.Context, jobs []Job) error {
+	valueStrings := make([]string, 0, len(jobs))
+	valueArgs := make([]interface{}, 0, len(jobs)*8)
+	placeholderNum := 0
+	for _, job := range jobs {
+		placeholders := make([]string, 0)
+		for i := 0; i < 8; i++ {
+			placeholderNum++
+			placeholders = append(placeholders, fmt.Sprintf("$%d", placeholderNum))
+		}
+		valueStrings = append(valueStrings, fmt.Sprintf("(%s)", strings.Join(placeholders, ",")))
+		valueArgs = append(
+			valueArgs,
+			job.Id,
+			job.Queue,
+			job.Type,
+			job.Arg,
+			job.Attempt,
+			job.NextRunAt,
+			job.CreatedAt,
+			job.UpdatedAt,
+		)
+	}
+	query := fmt.Sprintf("INSERT INTO bgjob_job (id, queue, type, arg, attempt, next_run_at, created_at, updated_at) VALUES %s",
+		strings.Join(valueStrings, ","))
+	_, err := p.db.ExecContext(ctx, query, valueArgs...)
 	if err != nil {
 		if strings.Contains(err.Error(), "23505") { //unique_violation
 			return ErrJobAlreadyExist

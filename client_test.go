@@ -85,6 +85,65 @@ func TestClient_EnqueueGenerateId(t *testing.T) {
 	require.NoError(err)
 }
 
+func TestClient_BulkEnqueue(t *testing.T) {
+	require, db, cli := prepareTest(t)
+
+	err := cli.BulkEnqueue(context.Background(), nil)
+	require.Error(err)
+
+	requests := []bgjob.EnqueueRequest{{
+		Id:    "1",
+		Queue: "name",
+		Type:  "test1",
+		Arg:   []byte(`{"simpleJson": 1}`),
+	}, {
+		Id:    "1",
+		Queue: "name",
+		Type:  "test3",
+		Arg:   []byte(`{"simpleJson": 3}`),
+	}}
+	err = cli.BulkEnqueue(context.Background(), requests)
+	require.Error(err)
+	require.EqualValues(bgjob.ErrJobAlreadyExist, err)
+
+	requests = []bgjob.EnqueueRequest{{
+		Queue: "name",
+		Type:  "test1",
+		Arg:   []byte(`{"simpleJson": 1}`),
+	}, {
+		Queue: "name",
+		Arg:   []byte(`{"simpleJson": 3}`),
+	}}
+	err = cli.BulkEnqueue(context.Background(), requests)
+	require.Error(err)
+	require.EqualValues(bgjob.ErrTypeIsRequired, err)
+
+	requests = []bgjob.EnqueueRequest{{
+		Id:    "1",
+		Queue: "name",
+		Type:  "test1",
+		Arg:   []byte(`{"simpleJson": 1}`),
+	}, {
+		Id:    "2",
+		Queue: "name",
+		Type:  "test2",
+		Arg:   []byte(`{"simpleJson": 2}`),
+	}}
+	err = cli.BulkEnqueue(context.Background(), requests)
+	require.NoError(err)
+
+	job, err := getJob(db.DB, "1")
+	require.NoError(err)
+	require.EqualValues("test1", job.Type)
+
+	job, err = getJob(db.DB, "2")
+	require.NoError(err)
+	require.EqualValues("test2", job.Type)
+
+	job, err = getJob(db.DB, "3")
+	require.Error(err)
+}
+
 func TestClient_DoEmptyQueue(t *testing.T) {
 	require, _, cli := prepareTest(t)
 	err := cli.Do(context.Background(), "name", func(ctx context.Context, job bgjob.Job) bgjob.Result {
