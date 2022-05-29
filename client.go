@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"time"
 )
@@ -36,48 +35,19 @@ func (c *Client) Enqueue(ctx context.Context, req EnqueueRequest) error {
 }
 
 func (c *Client) BulkEnqueue(ctx context.Context, list []EnqueueRequest) error {
-	if len(list) == 0 {
-		return errors.New("list is empty. at least one job is expected")
+	jobs, err := requestsToJobs(list)
+	if err != nil {
+		return err
 	}
 
-	jobs := make([]Job, 0, len(list))
-	now := timeNow()
-	for _, req := range list {
-		if req.Queue == "" {
-			return ErrQueueIsRequired
-		}
-		if req.Type == "" {
-			return ErrTypeIsRequired
-		}
-
-		id := req.Id
-		if id == "" {
-			generated, err := nextId()
-			if err != nil {
-				return fmt.Errorf("generate id: %w", err)
-			}
-			id = generated
-		}
-		job := Job{
-			Id:        id,
-			Queue:     req.Queue,
-			Type:      req.Type,
-			Arg:       req.Arg,
-			Attempt:   0,
-			LastError: nil,
-			NextRunAt: now.Add(req.Delay).Unix(),
-			CreatedAt: now,
-			UpdatedAt: now,
-		}
-		jobs = append(jobs, job)
-	}
-	err := c.store.BulkInsert(ctx, jobs)
+	err = c.store.BulkInsert(ctx, jobs)
 	if err == ErrJobAlreadyExist {
 		return err
 	}
 	if err != nil {
-		return fmt.Errorf("insert jobs: %w", err)
+		return fmt.Errorf("bulk insert: %w", err)
 	}
+
 	return nil
 }
 

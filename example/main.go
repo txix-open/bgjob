@@ -66,7 +66,7 @@ func main() {
 	worker.Run(ctx) //call ones, non-blocking
 
 	err = cli.Enqueue(ctx, bgjob.EnqueueRequest{
-		Id:    "test", //you can provide you own id
+		Id:    "test", //you can provide your own id
 		Queue: queueName,
 		Type:  "complete_me",
 		Arg:   []byte(`{"simpleJson": 1}`), //it can be json or protobuf or a simple string
@@ -95,4 +95,33 @@ func main() {
 
 	time.Sleep(1 * time.Second)
 	worker.Shutdown() //graceful shutdown, call ones
+}
+
+func enqueueInTx(db *sql.DB) (err error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	// YOUR BUSINESS TRANSACTION HERE
+
+	err = bgjob.Enqueue(context.Background(), tx, bgjob.EnqueueRequest{
+		Queue: "work",
+		Type:  "send_email",
+	})
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+
+	return nil
 }

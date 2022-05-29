@@ -15,6 +15,7 @@ Highly inspired by [gue](https://github.com/vgarvardt/gue)
 * Job uniqueness
 * Delayed execution
 * Retries with dynamic timeout
+* [Enqueuing jobs in transaction](#enqueue-job-in-transaction)
 * DLQ
 * Zero dependencies (database/sql is used, to log events you can use `Observer`)
 
@@ -135,4 +136,40 @@ func main() {
 }
 
 
+```
+
+## Enqueue job in transaction
+* `bgjob.Enqueue` and `bgjob.BulkEnqueue` can help
+
+```go
+package main
+
+func enqueueInTx(db *sql.DB) (err error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	
+	// YOUR BUSINESS TRANSACTION HERE
+	
+	err = bgjob.Enqueue(context.Background(), tx, bgjob.EnqueueRequest{
+		Queue: "work",
+		Type:  "send_email",
+	})
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	
+	return nil
+}
 ```
