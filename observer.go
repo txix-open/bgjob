@@ -8,6 +8,7 @@ import (
 type Observer interface {
 	JobStarted(ctx context.Context, job Job)
 	JobCompleted(ctx context.Context, job Job)
+	JobRescheduled(ctx context.Context, job Job, after time.Duration)
 	JobWillBeRetried(ctx context.Context, job Job, after time.Duration, err error)
 	JobMovedToDlq(ctx context.Context, job Job, err error)
 	QueueIsEmpty(ctx context.Context)
@@ -24,6 +25,9 @@ func (n NoopObserver) JobCompleted(ctx context.Context, job Job) {
 }
 
 func (n NoopObserver) JobWillBeRetried(ctx context.Context, job Job, after time.Duration, err error) {
+}
+
+func (n NoopObserver) JobRescheduled(ctx context.Context, job Job, after time.Duration) {
 }
 
 func (n NoopObserver) JobMovedToDlq(ctx context.Context, job Job, err error) {
