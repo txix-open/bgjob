@@ -92,6 +92,12 @@ func (p *pgTx) Update(ctx context.Context, id string, attempt int32, lastError s
 	return err
 }
 
+func (p *pgTx) UpdateNextRun(ctx context.Context, id string, nextRunAt int64) error {
+	query := "UPDATE bgjob_job SET next_run_at = $1, updated_at = $2 WHERE id = $3"
+	_, err := p.tx.ExecContext(ctx, query, nextRunAt, timeNow(), id)
+	return err
+}
+
 func (p *pgTx) Delete(ctx context.Context, id string) error {
 	query := `DELETE FROM bgjob_job WHERE id = $1`
 	_, err := p.tx.ExecContext(ctx, query, id)
