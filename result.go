@@ -10,6 +10,9 @@ type Result struct {
 	moveToDlq  bool
 	retry      bool
 	retryDelay time.Duration
+
+	reschedule      bool
+	rescheduleDelay time.Duration
 }
 
 func Complete() Result {
@@ -22,4 +25,8 @@ func Retry(after time.Duration, err error) Result {
 
 func MoveToDlq(err error) Result {
 	return Result{moveToDlq: true, err: err}
+}
+
+func Reschedule(after time.Duration) Result {
+	return Result{reschedule: true, rescheduleDelay: after}
 }
