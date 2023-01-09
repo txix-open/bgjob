@@ -99,6 +99,9 @@ func (w *Worker) run(ctx context.Context) {
 		if lastResult.moveToDlq {
 			w.observer.JobMovedToDlq(ctx, lastJob, lastResult.err)
 		}
+		if lastResult.reschedule {
+			w.observer.JobRescheduled(ctx, lastJob, lastResult.rescheduleDelay)
+		}
 	}
 }
 

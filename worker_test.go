@@ -204,6 +204,10 @@ func (o *observerCounter) JobWillBeRetried(ctx context.Context, job bgjob.Job, a
 	atomic.AddInt32(&o.jobWillBeRetried, 1)
 }
 
+func (o *observerCounter) JobRescheduled(ctx context.Context, job bgjob.Job, after time.Duration) {
+	atomic.AddInt32(&o.jobWillBeRetried, 1)
+}
+
 func (o *observerCounter) JobMovedToDlq(ctx context.Context, job bgjob.Job, err error) {
 	atomic.AddInt32(&o.jobMovedToDlq, 1)
 }
