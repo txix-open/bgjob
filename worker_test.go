@@ -117,6 +117,36 @@ func TestWorker_Observer(t *testing.T) {
 	require.EqualValues(0, atomic.LoadInt32(&observer.workerError))
 }
 
+func TestWorker_Observer_Reschedule(t *testing.T) {
+	require, _, cli := prepareTest(t)
+
+	observer := &observerCounter{}
+
+	rescheduled := int32(0)
+	w := bgjob.NewWorker(cli, "test", bgjob.HandlerFunc(func(ctx context.Context, job bgjob.Job) bgjob.Result {
+		if atomic.LoadInt32(&rescheduled) == 3 {
+			return bgjob.Complete()
+		}
+		atomic.AddInt32(&rescheduled, 1)
+		return bgjob.Reschedule(1 * time.Second)
+	}), bgjob.WithObserver(observer))
+	w.Run(context.Background())
+	time.Sleep(1 * time.Second) //trigger queue is empty
+
+	err := cli.Enqueue(context.Background(), bgjob.EnqueueRequest{
+		Type:  "reschedule_me",
+		Queue: "test",
+	})
+	require.NoError(err)
+	time.Sleep(5 * time.Second)
+
+	require.EqualValues(1, atomic.LoadInt32(&observer.jobCompeted))
+	require.EqualValues(3, atomic.LoadInt32(&observer.jobRescheduled))
+	require.EqualValues(4, atomic.LoadInt32(&observer.jobStarted))
+	require.GreaterOrEqual(atomic.LoadInt32(&observer.queueIsEmpty), int32(1))
+	require.EqualValues(0, atomic.LoadInt32(&observer.workerError))
+}
+
 func TestWorker_PollInterval(t *testing.T) {
 	require, _, cli := prepareTest(t)
 	observer := &observerCounter{}
@@ -187,6 +217,7 @@ type observerCounter struct {
 	jobStarted       int32
 	jobCompeted      int32
 	jobWillBeRetried int32
+	jobRescheduled   int32
 	jobMovedToDlq    int32
 	queueIsEmpty     int32
 	workerError      int32
@@ -205,7 +236,7 @@ func (o *observerCounter) JobWillBeRetried(ctx context.Context, job bgjob.Job, a
 }
 
 func (o *observerCounter) JobRescheduled(ctx context.Context, job bgjob.Job, after time.Duration) {
-	atomic.AddInt32(&o.jobWillBeRetried, 1)
+	atomic.AddInt32(&o.jobRescheduled, 1)
 }
 
 func (o *observerCounter) JobMovedToDlq(ctx context.Context, job bgjob.Job, err error) {
