@@ -11,6 +11,7 @@ import (
 type Tx interface {
 	Job() Job
 	Update(ctx context.Context, id string, attempt int32, lastError string, nextRunAt int64) error
+	UpdateNextRun(ctx context.Context, id string, nextRunAt int64) error
 	Delete(ctx context.Context, id string) error
 	SaveInDlq(ctx context.Context, job Job) error
 }
@@ -95,6 +96,17 @@ func (c *Client) jobTx(ctx context.Context, tx Tx, f func(ctx context.Context, j
 		err = tx.Delete(ctx, job.Id)
 		if err != nil {
 			return fmt.Errorf("delete job: %w", err)
+		}
+	}
+
+	if result.reschedule {
+		err := tx.UpdateNextRun(
+			ctx,
+			job.Id,
+			timeNow().Add(result.rescheduleDelay).Unix(),
+		)
+		if err != nil {
+			return fmt.Errorf("update job: %w", err)
 		}
 	}
 
