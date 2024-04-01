@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/integration-system/bgjob"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"github.com/txix-open/bgjob"
 )
 
 func TestClient_Enqueue(t *testing.T) {

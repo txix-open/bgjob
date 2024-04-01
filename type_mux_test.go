@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/integration-system/bgjob"
+	"github.com/txix-open/bgjob"
 )
 
 func TestMux(t *testing.T) {

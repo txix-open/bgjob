@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/integration-system/bgjob"
+	"github.com/txix-open/bgjob"
 )
 
 func TestEnqueueTxRollback(t *testing.T) {

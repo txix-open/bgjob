@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: golang:1.17
+    container: golang:1.22
     services:
       postgres:
         image: postgres

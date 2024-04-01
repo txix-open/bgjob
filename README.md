@@ -1,7 +1,7 @@
 # bgjob
-![Build and test](https://github.com/integration-system/bgjob/actions/workflows/main.yml/badge.svg)
+![Build and test](https://github.com/txix-open/bgjob/actions/workflows/main.yml/badge.svg)
 [![codecov](https://codecov.io/gh/integration-system/bgjob/branch/master/graph/badge.svg?token=ZEX2Y8ZWKZ)](https://codecov.io/gh/integration-system/bgjob)
-[![Go Report Card](https://goreportcard.com/badge/github.com/integration-system/bgjob)](https://goreportcard.com/report/github.com/integration-system/bgjob)
+[![Go Report Card](https://goreportcard.com/badge/github.com/txix-open/bgjob)](https://goreportcard.com/report/github.com/txix-open/bgjob)
 
 Tiny library to handle background jobs.
 
@@ -26,12 +26,10 @@ Highly inspired by [gue](https://github.com/vgarvardt/gue)
 * You have a quite small load. Queues on database usually can handle around 1000 rps
 
 ## State
-* API unstable and can be changed
-* Library is not tested well, please use it in your production carefully
-* Need to implement benchmarking and load tests
+* The package has been used in production for 3 years with a small load
 
 ## Install
-1. ```go get github.com/integration-system/bgjob```
+1. ```go get github.com/txix-open/bgjob```
 2. Add to your db migration tool sql from migration/init.sql
 
 ## Complete example
@@ -47,9 +45,9 @@ import (
 	"runtime"
 	"time"
 
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/integration-system/bgjob"
+	"github.com/txix-open/bgjob"
 )
 
 type Observer struct {

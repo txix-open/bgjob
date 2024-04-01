@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/integration-system/bgjob"
 	"github.com/pkg/errors"
+	"github.com/txix-open/bgjob"
 )
 
 func TestWorker_Run(t *testing.T) {
