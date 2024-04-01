@@ -1,6 +1,6 @@
 # bgjob
 ![Build and test](https://github.com/txix-open/bgjob/actions/workflows/main.yml/badge.svg)
-[![codecov](https://codecov.io/gh/integration-system/bgjob/branch/master/graph/badge.svg?token=ZEX2Y8ZWKZ)](https://codecov.io/gh/integration-system/bgjob)
+[![codecov](https://codecov.io/gh/txix-open/bgjob/branch/master/graph/badge.svg?token=ZEX2Y8ZWKZ)](https://codecov.io/gh/txix-open/bgjob)
 [![Go Report Card](https://goreportcard.com/badge/github.com/txix-open/bgjob)](https://goreportcard.com/report/github.com/txix-open/bgjob)
 
 Tiny library to handle background jobs.
