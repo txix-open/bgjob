@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/pkg/errors"
 )
 
 type pgStore struct {
@@ -53,6 +54,15 @@ LIMIT 1 FOR UPDATE SKIP LOCKED
 			tx:  tx,
 		})
 	})
+}
+
+func (p *pgStore) BulkDelete(ctx context.Context, ids []string) error {
+	query := "DELETE FROM bgjob_job WHERE id=ANY($1);"
+	_, err := p.db.ExecContext(ctx, query, ids)
+	if err != nil {
+		return errors.WithMessage(err, "exec delete bgjob")
+	}
+	return nil
 }
 
 func runTx(ctx context.Context, db *sql.DB, txFunc func(ctx context.Context, tx *sql.Tx) error) error {

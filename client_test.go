@@ -152,6 +152,59 @@ func TestClient_DoEmptyQueue(t *testing.T) {
 	require.EqualValues(bgjob.ErrEmptyQueue, err)
 }
 
+func TestClient_Dequeue(t *testing.T) {
+	require, db, cli := prepareTest(t)
+
+	err := cli.Enqueue(context.Background(), bgjob.EnqueueRequest{
+		Id:    "123",
+		Queue: "name",
+		Type:  "test",
+	})
+	require.NoError(err)
+
+	job, err := getJob(db.DB, "123")
+	require.NoError(err)
+	require.NotNil(job)
+
+	err = cli.Dequeue(context.Background(), "123")
+	require.NoError(err)
+
+	_, err = getJob(db.DB, "123")
+	require.Error(err)
+}
+func TestClient_BulkDequeue(t *testing.T) {
+	require, db, cli := prepareTest(t)
+
+	err := cli.Enqueue(context.Background(), bgjob.EnqueueRequest{
+		Id:    "123",
+		Queue: "name",
+		Type:  "test",
+	})
+	require.NoError(err)
+	job, err := getJob(db.DB, "123")
+	require.NoError(err)
+	require.NotNil(job)
+
+	err = cli.Enqueue(context.Background(), bgjob.EnqueueRequest{
+		Id:    "125",
+		Queue: "name",
+		Type:  "test",
+	})
+	require.NoError(err)
+
+	job, err = getJob(db.DB, "125")
+	require.NoError(err)
+	require.NotNil(job)
+
+	err = cli.BulkDequeue(context.Background(), []string{"123", "125"})
+	require.NoError(err)
+
+	_, err = getJob(db.DB, "123")
+	require.Error(err)
+	_, err = getJob(db.DB, "125")
+	require.Error(err)
+}
+
 func TestClient_DoComplete(t *testing.T) {
 	require, db, cli := prepareTest(t)
 

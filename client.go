@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type Tx interface {
@@ -19,6 +21,7 @@ type Tx interface {
 type Store interface {
 	Acquire(ctx context.Context, queue string, tx func(tx Tx) error) error
 	BulkInsert(ctx context.Context, jobs []Job) error
+	BulkDelete(ctx context.Context, ids []string) error
 }
 
 type Client struct {
@@ -49,6 +52,18 @@ func (c *Client) BulkEnqueue(ctx context.Context, list []EnqueueRequest) error {
 		return fmt.Errorf("bulk insert: %w", err)
 	}
 
+	return nil
+}
+
+func (c *Client) Dequeue(ctx context.Context, id string) error {
+	return c.BulkDequeue(ctx, []string{id})
+}
+
+func (c *Client) BulkDequeue(ctx context.Context, ids []string) error {
+	err := c.store.BulkDelete(ctx, ids)
+	if err != nil {
+		return errors.WithMessage(err, "bulk delete")
+	}
 	return nil
 }
 
