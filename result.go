@@ -13,6 +13,8 @@ type Result struct {
 
 	reschedule      bool
 	rescheduleDelay time.Duration
+	overrideArg     bool
+	arg             []byte
 }
 
 func Complete() Result {
@@ -29,4 +31,8 @@ func MoveToDlq(err error) Result {
 
 func Reschedule(after time.Duration) Result {
 	return Result{reschedule: true, rescheduleDelay: after}
+}
+
+func RescheduleWithArg(after time.Duration, arg []byte) Result {
+	return Result{reschedule: true, overrideArg: true, rescheduleDelay: after, arg: arg}
 }

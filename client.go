@@ -12,6 +12,7 @@ type Tx interface {
 	Job() Job
 	Update(ctx context.Context, id string, attempt int32, lastError string, nextRunAt int64) error
 	UpdateNextRun(ctx context.Context, id string, nextRunAt int64) error
+	UpdateArg(ctx context.Context, id string, arg []byte) error
 	Delete(ctx context.Context, id string) error
 	SaveInDlq(ctx context.Context, job Job) error
 }
@@ -107,6 +108,12 @@ func (c *Client) jobTx(ctx context.Context, tx Tx, f func(ctx context.Context, j
 		)
 		if err != nil {
 			return fmt.Errorf("update job: %w", err)
+		}
+	}
+	if result.overrideArg {
+		err := tx.UpdateArg(ctx, job.Id, result.arg)
+		if err != nil {
+			return fmt.Errorf("update job arg: %w", err)
 		}
 	}
 

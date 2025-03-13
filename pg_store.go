@@ -125,3 +125,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	)
 	return err
 }
+
+func (p *pgTx) UpdateArg(ctx context.Context, id string, arg []byte) error {
+	query := "UPDATE bgjob_job SET arg = $1, updated_at = $2 WHERE id = $3"
+	_, err := p.tx.ExecContext(ctx, query, arg, timeNow(), id)
+	return err
+}

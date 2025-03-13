@@ -89,7 +89,9 @@ func (w *Worker) run(ctx context.Context) {
 			}
 			continue
 		}
-
+		if lastResult.overrideArg {
+			lastJob.Arg = lastResult.arg
+		}
 		if lastResult.complete {
 			w.observer.JobCompleted(ctx, lastJob)
 		}
