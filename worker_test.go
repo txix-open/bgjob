@@ -62,20 +62,24 @@ func TestWorker_RunConcurrency(t *testing.T) {
 	}), bgjob.WithConcurrency(2))
 	w.Run(context.Background())
 
-	err := cli.Enqueue(context.Background(), bgjob.EnqueueRequest{
-		Type:  "test",
-		Queue: "test",
-	})
-	require.NoError(err)
-	err = cli.Enqueue(context.Background(), bgjob.EnqueueRequest{
-		Type:  "test",
-		Queue: "test",
+	startTime := time.Now()
+	err := cli.BulkEnqueue(context.Background(), []bgjob.EnqueueRequest{
+		{
+			Type:  "test",
+			Queue: "test",
+		},
+		{
+			Type:  "test",
+			Queue: "test",
+		},
 	})
 	require.NoError(err)
 
-	time.Sleep(6 * time.Second) //6 < 10
-	require.EqualValues(2, atomic.LoadInt32(&value))
-
+	require.Eventually(func() bool {
+		return atomic.LoadInt32(&value) == 2
+	}, 11*time.Second, 100*time.Millisecond)
+	duration := time.Since(startTime)
+	require.Less(duration.Seconds(), 10.0, "Tasks should run in parallel, not sequentially")
 }
 
 func TestWorker_Observer(t *testing.T) {
