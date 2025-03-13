@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: golang:1.22
+    container: golang:1.24
     services:
       postgres:
         image: postgres
@@ -21,13 +21,12 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Run coverage
         env:
           POSTGRES_HOST: postgres
         run: go test -race -coverprofile=coverage.out -covermode=atomic
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
-
