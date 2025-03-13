@@ -284,6 +284,42 @@ func TestClient_DoReschedule(t *testing.T) {
 	require.True(errors.Is(err, sql.ErrNoRows))
 }
 
+func TestClient_DoRescheduleWithArg(t *testing.T) {
+	require, db, cli := prepareTest(t)
+
+	req := bgjob.EnqueueRequest{
+		Id:    "123",
+		Queue: "name",
+		Type:  "test",
+		Arg:   []byte(`{"simpleJson": 1}`),
+	}
+	err := cli.Enqueue(context.Background(), req)
+	require.NoError(err)
+
+	overridedArg := []byte(`{"jsonKey":"jsonValue"}`)
+	err = cli.Do(context.Background(), "name", func(ctx context.Context, job bgjob.Job) bgjob.Result {
+		require.EqualValues(1, job.Attempt)
+		return bgjob.RescheduleWithArg(5*time.Second, overridedArg)
+	})
+	require.NoError(err)
+
+	err = cli.Do(context.Background(), "name", func(ctx context.Context, job bgjob.Job) bgjob.Result {
+		return bgjob.Complete()
+	})
+	require.EqualValues(bgjob.ErrEmptyQueue, err)
+
+	time.Sleep(5 * time.Second)
+	err = cli.Do(context.Background(), "name", func(ctx context.Context, job bgjob.Job) bgjob.Result {
+		require.EqualValues(1, job.Attempt)
+		require.JSONEq(string(overridedArg), string(job.Arg))
+		return bgjob.Complete()
+	})
+	require.NoError(err)
+
+	_, err = getJob(db.DB, "123")
+	require.True(errors.Is(err, sql.ErrNoRows))
+}
+
 func TestClient_DoDlq(t *testing.T) {
 	require, db, cli := prepareTest(t)
 

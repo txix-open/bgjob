@@ -1,6 +1,6 @@
 module github.com/txix-open/bgjob
 
-go 1.22
+go 1.24
 
 require (
 	github.com/jackc/pgx/v5 v5.5.5
