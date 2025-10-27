@@ -368,6 +368,9 @@ func prepareTest(t *testing.T) (*require.Assertions, *db, *bgjob.Client) {
 	asserter.NoError(err)
 
 	store, err := bgjob.NewPgStoreV2(context.Background(), db.DB)
+	if err != nil {
+		t.Fatalf("failed to create pg store: %v", err)
+	}
 	cli := bgjob.NewClient(store)
 
 	return asserter, db, cli

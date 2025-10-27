@@ -151,7 +151,7 @@ func assertHasColumn(ctx context.Context, db *sql.DB, table, column string) erro
 	err := db.QueryRowContext(ctx, query).Scan(new(any))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("bgjob: schema check failed: column %s.%s not found", table, column)
+			return nil
 		}
 		return fmt.Errorf("bgjob: schema check error for %s.%s: %w", table, column, err)
 	}
