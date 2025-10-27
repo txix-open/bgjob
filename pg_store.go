@@ -10,10 +10,21 @@ type pgStore struct {
 	db *sql.DB
 }
 
-func NewPgStore(db *sql.DB) *pgStore {
-	return &pgStore{
-		db: db,
+func NewPgStoreV2(ctx context.Context, db *sql.DB) (*pgStore, error) {
+	err := assertHasColumn(ctx, db, "bgjob_job", "request_id")
+	if err != nil {
+		return nil, fmt.Errorf("%w; please apply 'add_request_id.sql' migration adding column `request_id` to `bgjob_job`", err)
 	}
+
+	err = assertHasColumn(ctx, db, "bgjob_dead_job", "request_id")
+	if err != nil {
+		return nil, fmt.Errorf("%w; please apply 'add_request_id.sql' migration adding column `request_id` to `bgjob_dead_job`", err)
+	}
+
+	return &pgStore{
+			db: db,
+		},
+		nil
 }
 
 func (p *pgStore) BulkInsert(ctx context.Context, jobs []Job) error {
@@ -132,4 +143,18 @@ func (p *pgTx) UpdateArg(ctx context.Context, id string, arg []byte) error {
 	query := "UPDATE bgjob_job SET arg = $1, updated_at = $2 WHERE id = $3"
 	_, err := p.tx.ExecContext(ctx, query, arg, timeNow(), id)
 	return err
+}
+
+func assertHasColumn(ctx context.Context, db *sql.DB, table, column string) error {
+	query := fmt.Sprintf("SELECT %s FROM %s LIMIT 1", column, table)
+
+	err := db.QueryRowContext(ctx, query).Scan(new(any))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("bgjob: schema check failed: column %s.%s not found", table, column)
+		}
+		return fmt.Errorf("bgjob: schema check error for %s.%s: %w", table, column, err)
+	}
+
+	return nil
 }

@@ -80,8 +80,13 @@ func main() {
 		//you can move the job to permanent storage if you can't handle it
 		return bgjob.MoveToDlq(errors.New("move to dlq"))
 	})
-
-	cli := bgjob.NewClient(bgjob.NewPgStore(db))
+	
+	ctx := context.Background()
+	store, err := bgjob.NewPgStoreV2(ctx, db)
+	if err != nil {
+		panic(err)
+	}
+	cli := bgjob.NewClient(store)
 
 	//if handler for job type wasn't provided, job will be moved to dlq
 	handler := bgjob.NewMux().
@@ -98,7 +103,6 @@ func main() {
 		bgjob.WithConcurrency(runtime.NumCPU()), //default 1
 		bgjob.WithPollInterval(500*time.Millisecond), //default 1s
 	)
-	ctx := context.Background()
 	worker.Run(ctx) //call ones, non-blocking
 
 	err = cli.Enqueue(ctx, bgjob.EnqueueRequest{

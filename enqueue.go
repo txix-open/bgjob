@@ -9,7 +9,7 @@ import (
 )
 
 type ExecerContext interface {
-	ExecContext(ctx context.Context, s string, args ...interface{}) (sql.Result, error)
+	ExecContext(ctx context.Context, s string, args ...any) (sql.Result, error)
 }
 
 func Enqueue(ctx context.Context, e ExecerContext, req EnqueueRequest) error {
@@ -47,9 +47,6 @@ func requestsToJobs(list []EnqueueRequest) ([]Job, error) {
 		if req.Type == "" {
 			return nil, ErrTypeIsRequired
 		}
-		if req.RequestId == "" {
-			return nil, ErrRequestIdIsRequired
-		}
 
 		id := req.Id
 		if id == "" {
@@ -79,7 +76,7 @@ func requestsToJobs(list []EnqueueRequest) ([]Job, error) {
 
 func bulkInsert(ctx context.Context, e ExecerContext, jobs []Job) error {
 	valueStrings := make([]string, 0, len(jobs))
-	valueArgs := make([]interface{}, 0, len(jobs)*9)
+	valueArgs := make([]any, 0, len(jobs)*9)
 	placeholderNum := 0
 	for _, job := range jobs {
 		placeholders := make([]string, 0)

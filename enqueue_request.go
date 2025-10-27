@@ -10,5 +10,5 @@ type EnqueueRequest struct {
 	Type      string        //required
 	Arg       []byte        //optional
 	Delay     time.Duration //optional
-	RequestId string        //required
+	RequestId string        //optional
 }
