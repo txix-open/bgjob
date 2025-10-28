@@ -9,7 +9,7 @@ import (
 )
 
 type ExecerContext interface {
-	ExecContext(ctx context.Context, s string, args ...interface{}) (sql.Result, error)
+	ExecContext(ctx context.Context, s string, args ...any) (sql.Result, error)
 }
 
 func Enqueue(ctx context.Context, e ExecerContext, req EnqueueRequest) error {
@@ -61,6 +61,7 @@ func requestsToJobs(list []EnqueueRequest) ([]Job, error) {
 			Queue:     req.Queue,
 			Type:      req.Type,
 			Arg:       req.Arg,
+			RequestId: req.RequestId,
 			Attempt:   0,
 			LastError: nil,
 			NextRunAt: now.Add(req.Delay).Unix(),
@@ -75,11 +76,11 @@ func requestsToJobs(list []EnqueueRequest) ([]Job, error) {
 
 func bulkInsert(ctx context.Context, e ExecerContext, jobs []Job) error {
 	valueStrings := make([]string, 0, len(jobs))
-	valueArgs := make([]interface{}, 0, len(jobs)*8)
+	valueArgs := make([]any, 0, len(jobs)*9)
 	placeholderNum := 0
 	for _, job := range jobs {
 		placeholders := make([]string, 0)
-		for i := 0; i < 8; i++ {
+		for i := 0; i < 9; i++ {
 			placeholderNum++
 			placeholders = append(placeholders, fmt.Sprintf("$%d", placeholderNum))
 		}
@@ -94,9 +95,10 @@ func bulkInsert(ctx context.Context, e ExecerContext, jobs []Job) error {
 			job.NextRunAt,
 			job.CreatedAt,
 			job.UpdatedAt,
+			job.RequestId,
 		)
 	}
-	query := fmt.Sprintf("INSERT INTO bgjob_job (id, queue, type, arg, attempt, next_run_at, created_at, updated_at) VALUES %s",
+	query := fmt.Sprintf("INSERT INTO bgjob_job (id, queue, type, arg, attempt, next_run_at, created_at, updated_at, request_id) VALUES %s",
 		strings.Join(valueStrings, ","))
 	_, err := e.ExecContext(ctx, query, valueArgs...)
 	if err != nil {

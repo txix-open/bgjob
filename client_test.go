@@ -367,7 +367,9 @@ func prepareTest(t *testing.T) (*require.Assertions, *db, *bgjob.Client) {
 	err = applyMigration(db.DB)
 	asserter.NoError(err)
 
-	cli := bgjob.NewClient(bgjob.NewPgStore(db.DB))
+	store, err := bgjob.NewPgStoreV2(context.Background(), db.DB)
+	asserter.NoError(err)
+	cli := bgjob.NewClient(store)
 
 	return asserter, db, cli
 }

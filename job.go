@@ -14,4 +14,5 @@ type Job struct {
 	NextRunAt int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	RequestId string
 }

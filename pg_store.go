@@ -10,10 +10,21 @@ type pgStore struct {
 	db *sql.DB
 }
 
-func NewPgStore(db *sql.DB) *pgStore {
-	return &pgStore{
-		db: db,
+func NewPgStoreV2(ctx context.Context, db *sql.DB) (*pgStore, error) {
+	err := assertHasColumn(ctx, db, "bgjob_job", "request_id")
+	if err != nil {
+		return nil, fmt.Errorf("%w; please apply 'add_request_id.sql' migration adding column `request_id` to `bgjob_job`", err)
 	}
+
+	err = assertHasColumn(ctx, db, "bgjob_dead_job", "request_id")
+	if err != nil {
+		return nil, fmt.Errorf("%w; please apply 'add_request_id.sql' migration adding column `request_id` to `bgjob_dead_job`", err)
+	}
+
+	return &pgStore{
+			db: db,
+		},
+		nil
 }
 
 func (p *pgStore) BulkInsert(ctx context.Context, jobs []Job) error {
@@ -23,7 +34,7 @@ func (p *pgStore) BulkInsert(ctx context.Context, jobs []Job) error {
 func (p *pgStore) Acquire(ctx context.Context, queue string, handler func(tx Tx) error) error {
 	return runTx(ctx, p.db, func(ctx context.Context, tx *sql.Tx) error {
 		query := `
-SELECT id, queue, type, arg, attempt, last_error, next_run_at, created_at, updated_at
+SELECT id, queue, type, arg, attempt, last_error, next_run_at, created_at, updated_at, request_id
 FROM bgjob_job
 WHERE queue = $1 AND next_run_at <= $2
 ORDER BY next_run_at, created_at
@@ -41,6 +52,7 @@ LIMIT 1 FOR UPDATE SKIP LOCKED
 			&job.NextRunAt,
 			&job.CreatedAt,
 			&job.UpdatedAt,
+			&job.RequestId,
 		)
 		if err == sql.ErrNoRows {
 			return ErrEmptyQueue
@@ -106,8 +118,8 @@ func (p *pgTx) Delete(ctx context.Context, id string) error {
 
 func (p *pgTx) SaveInDlq(ctx context.Context, job Job) error {
 	query := `INSERT INTO bgjob_dead_job 
-(job_id, queue, type, arg, attempt, next_run_at, last_error, job_created_at, job_updated_at, moved_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+(job_id, queue, type, arg, attempt, next_run_at, last_error, job_created_at, job_updated_at, moved_at, request_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 	_, err := p.tx.ExecContext(
 		ctx,
@@ -122,6 +134,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		job.CreatedAt,
 		job.UpdatedAt,
 		timeNow(),
+		job.RequestId,
 	)
 	return err
 }
@@ -130,4 +143,18 @@ func (p *pgTx) UpdateArg(ctx context.Context, id string, arg []byte) error {
 	query := "UPDATE bgjob_job SET arg = $1, updated_at = $2 WHERE id = $3"
 	_, err := p.tx.ExecContext(ctx, query, arg, timeNow(), id)
 	return err
+}
+
+func assertHasColumn(ctx context.Context, db *sql.DB, table, column string) error {
+	query := fmt.Sprintf("SELECT %s FROM %s LIMIT 1", column, table)
+
+	err := db.QueryRowContext(ctx, query).Scan(new(any))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		return fmt.Errorf("bgjob: schema check error for %s.%s: %w", table, column, err)
+	}
+
+	return nil
 }
