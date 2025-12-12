@@ -56,7 +56,9 @@ func TestEnqueueTxCommit(t *testing.T) {
 	require.NoError(err)
 
 	job1, err := getJob(db.DB, "123")
+	require.NoError(err)
 	require.NotNil(job1)
 	job2, err := getJob(db.DB, "124")
+	require.NoError(err)
 	require.NotNil(job2)
 }

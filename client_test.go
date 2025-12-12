@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -224,7 +225,7 @@ func TestClient_DoRetry(t *testing.T) {
 
 	err = cli.Do(context.Background(), "name", func(ctx context.Context, job bgjob.Job) bgjob.Result {
 		require.EqualValues(2, job.Attempt)
-		require.EqualValues("test error", *job.LastError)
+		require.True(strings.Contains(*job.LastError, "> test error"))
 		return bgjob.Retry(5*time.Second, errors.New("test error 2"))
 	})
 	require.NoError(err)
@@ -237,7 +238,7 @@ func TestClient_DoRetry(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	err = cli.Do(context.Background(), "name", func(ctx context.Context, job bgjob.Job) bgjob.Result {
 		require.EqualValues(3, job.Attempt)
-		require.EqualValues("test error 2", *job.LastError)
+		require.True(strings.Contains(*job.LastError, "> test error 2"))
 		return bgjob.Complete()
 	})
 	require.NoError(err)
